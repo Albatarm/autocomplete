@@ -20,7 +20,9 @@ import org.antlr.v4.parse.ANTLRLexer;
 import org.antlr.v4.parse.ANTLRParser;
 import org.antlr.v4.parse.GrammarASTAdaptor;
 import org.antlr.v4.parse.v3TreeGrammarException;
+import org.antlr.v4.tool.ast.ActionAST;
 import org.antlr.v4.tool.ast.GrammarAST;
+import org.antlr.v4.tool.ast.RuleAST;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -80,13 +82,14 @@ public class AutoCompleter {
             try {
                 ParserRuleReturnScope r = parser.grammarSpec();
                 GrammarAST tree = (GrammarAST)r.getTree();
-                
-                if (tree.getType() == ANTLRParser.PARSER || tree.getType() == ANTLRParser.COMBINED) {
+                LOG.debug(() -> "tree type = " + tree.getType());
+                if (tree.getType() == ANTLRParser.GRAMMAR) {
                     for (int index = 0; index < tree.getChildCount(); index++) {
                         BaseTree child = (BaseTree) tree.getChild(index);
                         // not sure
-                        if (child.getType() == ANTLRParser.TOKEN_REF) {
-                            traverseRule(child);
+                        LOG.debug("child " + child.getType());
+                        if (child.getType() == ANTLRParser.RULES) {
+                            traverseRules(child);
                         }
                     }
                 }
@@ -96,12 +99,49 @@ public class AutoCompleter {
         }
     }
 
-    private void traverseRule(BaseTree rule) {
-        BaseTree child = (BaseTree) rule.getChild(0);
+    private void traverseRules(BaseTree tree) {
+        LOG.debug("AutoCompleter::traverseRules " + tree.getClass());
+        for (int index = 0; index < tree.getChildCount(); index++) {
+            BaseTree child = (BaseTree) tree.getChild(index);
+            //LOG.debug("rules index is " + child.getType());
+            if (child.getType() == ANTLRParser.RULE) {
+                traverseRule((RuleAST) child);
+            }
+        }
+        
+        
+        /*BaseTree child = (BaseTree) rule.getChild(0);
         String tokenText = child.getText();
         if (Character.isLowerCase(tokenText.charAt(0))) {
             System.out.println("lol");
+        }*/
+    }
+    
+    private void traverseRule(RuleAST rule) {
+        LOG.debug("AutoCompleter::traverseRule " + rule.getRuleName());
+        
+        if (!rule.isLexerRule()) {
+            
+            traverseBlock(rule.getLexerAction(), rule.getRuleName());
+            
+            /*for (int index = 0; index < tree.getChildCount(); index++) {
+                BaseTree child = (BaseTree) tree.getChild(index);
+                LOG.debug("rules index is " + child.getType());
+                if (child.getType() == ANTLRParser.TOKEN_REF) {
+                    //traverseRule(child);
+                }
+            }*/
         }
+        
+    }
+    
+    private void traverseBlock(ActionAST action, String ruleName) {
+        LOG.debug("AutoCompleter::traverseBlock");
+        for (int index = 0; index < action.getChildCount(); index++) {
+            BaseTree child = (BaseTree) action.getChild(index);
+            LOG.debug("rules index is " + child.getType());
+        }
+        // 624
     }
     
     public static void main(String[] args) throws IOException, RecognitionException {
