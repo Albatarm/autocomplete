@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -57,6 +58,9 @@ public class AutoCompleter {
         LOG.debug("Parsing grammar file: {}", grammarFilename);
         readGrammar(grammarFilename);
         LOG.debug("Ending");
+    }
+    
+    public void print() {
         rules.forEach((name, rule) -> {
             System.out.println(name + " :  ");
             System.out.println(rule);
@@ -396,6 +400,14 @@ public class AutoCompleter {
 
     public RuleAlternatives getRuleAlternatives(String rule) {
         return rules.get(rule);
+    }
+    
+    public Set<String> getIgnoredRules() {
+        return Collections.unmodifiableSet(ignoredRules);
+    }
+    
+    public Set<String> getSpecialRules() {
+        return Collections.unmodifiableSet(specialRules);
     }
     
     private static String unquote(String s) {

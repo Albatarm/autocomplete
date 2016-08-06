@@ -1,40 +1,59 @@
 package com.albatarm.autocomplete;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import org.antlr.v4.parse.ANTLRParser;
 import org.antlr.v4.runtime.Lexer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class AutoCompletionContext<T extends Lexer> {
 
     enum RunState {
-        RunStateMatching, RunStateCollectionPending
+        Matching, CollectionPending
     }
+    
+    private static final Logger LOG = LogManager.getLogger(AutoCompletionContext.class);
 
-    private AutoCompleter rulesHolder;
+    private final AutoCompleter rulesHolder;
 
     private String typedPart;
-    private List<String> tokenNames;
-    private Deque<String> walkStack; // The rules as they are being matched or collected from.
+    private final List<String> tokenNames;
+    private final Deque<String> walkStack = new LinkedList<>(); // The rules as they are being matched or collected from.
     // It's a deque instead of a stack as we need to iterate over it.
 
-    private Scanner<T> scanner;
-    private Set<String> completionCandidates;
+    private final Scanner<T> scanner;
+    private Set<String> completionCandidates = new HashSet<>();
 
-    private int caretLine;
-    private int caretOffset;
+    private final int caretLine;
+    private final int caretOffset;
 
     private RunState runState;
 
+    private final String rootRule;
+
     // A hierarchical view of all table references in the code, updated constantly during the match process.
     // Organized as stack to be able to easily remove sets of references when changing nesting level.
-    private Deque<List<TableReference>> referencesStack;
+    //private Deque<List<TableReference>> referencesStack;
 
     // A flat list of possible references. Kinda snapshot of the references stack at the point when collection
     // begins (the stack is cleaned up while bubbling up, after the collection process).
     // Additionally, it gets also all references after the caret.
-    private List<TableReference> references;
+    //private List<TableReference> references;
+    
+    public AutoCompletionContext(AutoCompleter rulesHolder, List<String> tokenNames, Scanner<T> scanner, String rootRule, int caretLine, int caretOffset) {
+        this.rulesHolder = rulesHolder;
+        this.rootRule = rootRule;
+        this.caretLine = caretLine;
+        this.caretOffset = caretOffset;
+        this.tokenNames = new ArrayList<>(tokenNames);
+        this.scanner = scanner; // Has all the data necessary for scanning already.
+    }
 
     /**
      * Uses the given scanner (with set input) to collect a set of possible completion candidates at the given line + offset.
@@ -45,16 +64,37 @@ public class AutoCompletionContext<T extends Lexer> {
      *          Actual candidates are stored in the completion_candidates member set.
      *
      */
-    public boolean collectCandidates(LEXER lexer) {
+    public boolean collectCandidates() {
+        runState = RunState.Matching;
 
+        if (scanner.getTokenChannel() != 0) {
+          scanner.next(true);
+        }
+
+        //referencesStack.push_back(std::vector<TableReference>()); // For the root level of table references.
+        boolean matched = matchRule(rootRule);
+
+        // If a column reference is required then we have to continue scanning the query for table references.
+        if (completionCandidates.contains("column_ref"))
+        {
+          //collectRemainingTableReferences();
+          takeReferencesSnapshot(); // Move references from stack to the ref map.
+        }
+
+        return matched;
+    }
+    
+    public Set<String> getCompletionCandidates() {
+        return Collections.unmodifiableSet(completionCandidates);
     }
 
     private boolean matchRule(String rule) {
-        if (runState != RunState.RunStateMatching) { // Sanity check - should never happen at this point.
+        if (runState != RunState.Matching) { // Sanity check - should never happen at this point.
             return false;
         }
 
         if (isTokenEndAfterCaret()) {
+            //LOG.debug("matchRule::isTokenEndAfterCaret -> collecting from rule");
             collectFromRule(rule);
             return false;
         }
@@ -74,10 +114,9 @@ public class AutoCompletionContext<T extends Lexer> {
                 matchedAtLeastOnce = true;
                 scanner.next(true);
                 if (isTokenEndAfterCaret()) {
-                    resultState = RunState.RunStateCollectionPending;
+                    resultState = RunState.CollectionPending;
                 }
             }
-
         } else {
             boolean canSeek = false;
             for (GrammarSequence alt : alts.getSequences()) {
@@ -93,12 +132,12 @@ public class AutoCompletionContext<T extends Lexer> {
                 // When attempting to match one alt out of a list pick the one with the longest match.
                 // Reset the run state each time to have the base matching done first (in case a previous alt did collect).
                 int marker = scanner.getPosition();
-                runState = RunState.RunStateMatching;
+                runState = RunState.Matching;
                 boolean matched = matchAlternative(alt);
                 if (matched) {
                     matchedAtLeastOnce = true;
                 }
-                if (matched || runState != RunState.RunStateMatching) {
+                if (matched || runState != RunState.Matching) {
                     canSeek = true;
                     if (scanner.getPosition() > highestTokenIndex) {
                         highestTokenIndex = scanner.getPosition();
@@ -118,7 +157,6 @@ public class AutoCompletionContext<T extends Lexer> {
         walkStack.pop();
 
         return matchedAtLeastOnce;
-
     }
 
     private boolean isTokenEndAfterCaret() {
@@ -166,8 +204,8 @@ public class AutoCompletionContext<T extends Lexer> {
                 matched = match(node, scanner.getTokenType());
 
                 // If that match call caused the collection to start then don't continue with matching here.
-                if (runState != RunState.RunStateMatching) {
-                    if (runState == RunState.RunStateCollectionPending) {
+                if (runState != RunState.Matching) {
+                    if (runState == RunState.CollectionPending) {
                         // We start collecting at the current node if it allows multiple matches (to include candidates from the
                         // current rule). However this can prematurely stop the collection, since it might contain mandatory nodes.
                         // But since we matched it already at least once we also have to include tokens directly following it.
@@ -249,14 +287,14 @@ public class AutoCompletionContext<T extends Lexer> {
                         // to start and reached the end of the node which contains at least one path that allows to match
                         // more tokens after itself.
                         // So, we have to continue collecting candidates after the current node.
-                        if (runState == RunState.RunStateCollectionPending) {
+                        if (runState == RunState.CollectionPending) {
                             collectFromAlternative(sequence, i); // No check needed for multiple occurences (always the case here).
                             collectFromAlternative(sequence, i + 1); // Same double collection as above.
 
                             // If this collection run reached an end it means we are done here.
                             // Otherwise we might still need more candidates to collect because this node or its subnodes are all
                             // optional too.
-                            if (runState != RunState.RunStateCollectionPending) {
+                            if (runState != RunState.CollectionPending) {
                                 return hasMatchedAllMandatoryTokens(sequence, i);
                             }
 
@@ -295,6 +333,11 @@ public class AutoCompletionContext<T extends Lexer> {
                 break;
             }
         }
+        return true;
+    }
+
+    private void takeReferencesSnapshot() {
+        // TODO Auto-generated method stub
     }
 
     /**
@@ -323,4 +366,114 @@ public class AutoCompletionContext<T extends Lexer> {
         return true;
     }
 
+    /**
+     * Collects possibly reachable tokens from all alternatives in the given rule.
+     */
+    private void collectFromRule(String rule) {
+        // Don't go deeper if we have one of the special or ignored rules.
+        if (rulesHolder.getSpecialRules().contains(rule)) {
+            completionCandidates.add(rule);
+            runState = RunState.Matching;
+            return;
+        }
+
+        // Don't collect anything from an ignored rule.
+        if (rulesHolder.getIgnoredRules().contains(rule)) {
+            runState = RunState.Matching;
+            return;
+        }
+
+        // Any other rule goes here.
+        RunState combinedState = RunState.Matching;
+        RuleAlternatives alts = rulesHolder.getRuleAlternatives(rule);
+        if (alts.isOptimized()) {
+            // Insert only tokens we are interested in.
+            for (int i : alts.getSet()) {
+                String tokenRef = tokenNames.get(i);
+                boolean ignored = rulesHolder.getIgnoredRules().contains(tokenRef);
+                if (!ignored) {
+                    completionCandidates.add(tokenRef);
+                }
+            }
+
+            runState = RunState.Matching;
+            return;
+        } else {
+            for (GrammarSequence seq : alts.getSequences()) {
+                // First run a predicate check if this alt can be considered at all.
+                /*
+                 * if ((i->min_version > server_version) || (server_version > i->max_version)) continue;
+                 * 
+                 * if ((i->active_sql_modes > -1) && (i->active_sql_modes & sql_mode) != i->active_sql_modes) continue;
+                 * 
+                 * if ((i->inactive_sql_modes > -1) && (i->inactive_sql_modes & sql_mode) != 0) continue;
+                 */
+
+                collectFromAlternative(seq, 0);
+                if (runState == RunState.CollectionPending) {
+                    combinedState = RunState.CollectionPending;
+                }
+            }
+            runState = combinedState;
+        }
+    }
+
+    /**
+     * Collects all tokens that can be reached in the sequence from the given start point. There can be more than one if there are optional rules. Returns true
+     * if the sequence between the starting point and the end consists only of optional tokens or there aren't any at all.
+     */
+    private void collectFromAlternative(GrammarSequence sequence, int startIndex) {
+        for (int i = startIndex; i < sequence.getNodes().size(); ++i) {
+            GrammarNode node = sequence.getNodes().get(i);
+            if (node.isTerminal() && node.getTokenRef() == ANTLRParser.EOF) {
+                runState = RunState.Matching;
+                break;
+            }
+
+            if (node.isTerminal()) {
+                // Insert only tokens we are interested in.
+                String tokenRef = tokenNames.get(node.getTokenRef());
+                boolean ignored = rulesHolder.getIgnoredRules().contains(tokenRef);
+                boolean exists = completionCandidates.contains(tokenRef);
+                if (!ignored && !exists) {
+                    completionCandidates.add(tokenRef);
+                }
+                if (node.isRequired()) {
+                    // Also collect following tokens into this candidate, until we find the end of the sequence
+                    // or a token that is either not required or can appear multiple times.
+                    String tokenRefs = tokenRef;
+                    if (!ignored && !node.isMultiple()) {
+                        while (++i < sequence.getNodes().size()) {
+                            GrammarNode node2 = sequence.getNodes().get(i);
+                            if (!node2.isTerminal() || !node2.isRequired() || node2.isMultiple()) {
+                                break;
+                            }
+                            tokenRefs += " " + tokenNames.get(node2.getTokenRef());
+                        }
+
+                        if (tokenRefs.length() > tokenRef.length()) {
+                            if (!exists) {
+                                completionCandidates.remove(tokenRef);
+                            }
+                            completionCandidates.add(tokenRefs);
+                        }
+                    }
+
+                    // If we found a required token then we are done with this alternative.
+                    // That doesn't mean that we cannot start another collection run somewhere else. Just not in this alt anymore
+                    // (and those rules that include this alt).
+                    runState = RunState.Matching;
+                    return;
+                }
+            } else {
+                collectFromRule(node.getRuleRef());
+                if (node.isRequired() && runState != RunState.CollectionPending) {
+                    return;
+                }
+            }
+        }
+
+        // If we reach this point then we have found only optional parts, so the parent must continue collecting.
+        runState = RunState.CollectionPending;
+    }
 }

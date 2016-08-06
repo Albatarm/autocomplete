@@ -81,12 +81,20 @@ relop
    ;
 
 number
+   : Number
+   ;
+
+Number
    : MINUS? DIGIT + (POINT DIGIT +)?
    ;
 
 variable
-   : MINUS? LETTER (LETTER | DIGIT)*
+   : Ident
    ;
+   
+Ident
+    : MINUS? LETTER (LETTER | DIGIT)*
+    ;
 
 
 COS
