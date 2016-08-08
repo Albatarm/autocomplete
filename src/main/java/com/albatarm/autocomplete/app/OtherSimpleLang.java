@@ -14,8 +14,8 @@ public class OtherSimpleLang extends AbstractLang<OtherSimpleLexer> {
 
     protected OtherSimpleLang() {
         super(
-                "src/main/antlr4/com/albatarm/lang/simple2.g4", 
-                "target/generated-sources/antlr4/simple2.tokens", 
+                "src/main/antlr4/com/albatarm/lang/OtherSimple.g4", 
+                "target/generated-sources/antlr4/OtherSimple.tokens", 
                 SEPARATORS, 
                 "root", 
                 OtherSimpleParser.tokenNames, 

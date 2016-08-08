@@ -16,11 +16,10 @@ public class GrammarSequence {
     // MySql
     private int inactiveSqlModes = -1;
     
-    private final List<GrammarNode> nodes = new ArrayList<>();
+    private final List<GrammarNode> nodes;
     
-    public void addNode(GrammarNode node) {
-        //TODO sequence.nodes.push_back(node);
-        nodes.add(node);
+    public GrammarSequence(List<GrammarNode> nodes) {
+        this.nodes = new ArrayList<>(nodes);
     }
     
     @Override

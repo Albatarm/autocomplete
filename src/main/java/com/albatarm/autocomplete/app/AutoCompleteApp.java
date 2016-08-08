@@ -17,7 +17,7 @@ import javafx.stage.Stage;
 
 public class AutoCompleteApp extends Application {
     
-    private static final Lang LANG = new CalculatorLang();
+    private static final Lang LANG = new OtherSimpleLang();
     
     private TextArea textArea = new TextArea();
     private Label label = new Label();
@@ -57,7 +57,6 @@ public class AutoCompleteApp extends Application {
         textArea.textProperty().addListener((observable, oldValue, newValue) -> {
             compile(textArea.getCaretPosition(), newValue);
         });
-        
         textArea.caretPositionProperty().addListener((obs, oldValue, newValue) -> {
             compile(newValue.intValue(), textArea.getText());
         });
@@ -76,7 +75,6 @@ public class AutoCompleteApp extends Application {
     
     private static boolean doStuff(String source, Set<String> candidates, Caret caret) {
         AutoCompletionContext<?> ctx = LANG.compile(source, caret);
-        
         boolean result = ctx.collectCandidates();
         candidates.addAll(ctx.getCompletionCandidates());
         return result;

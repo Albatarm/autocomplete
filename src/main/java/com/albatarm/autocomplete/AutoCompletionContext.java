@@ -110,7 +110,7 @@ public class AutoCompletionContext<T extends Lexer> {
         if (alts.isOptimized()) {
             // In the optimized case we have neither predicates nor sequences.
             // We match a single terminal only, out of a set of alternative terminals.
-            if (alts.getSet().contains(scanner.getTokenType())) {
+            if (alts.getTokens().contains(scanner.getTokenType())) {
                 matchedAtLeastOnce = true;
                 scanner.next(true);
                 if (isTokenEndAfterCaret()) {
@@ -388,7 +388,7 @@ public class AutoCompletionContext<T extends Lexer> {
         RuleAlternatives alts = rulesHolder.getRuleAlternatives(rule);
         if (alts.isOptimized()) {
             // Insert only tokens we are interested in.
-            for (int i : alts.getSet()) {
+            for (int i : alts.getTokens()) {
                 String tokenRef = tokenNames.get(i);
                 boolean ignored = rulesHolder.getIgnoredRules().contains(tokenRef);
                 if (!ignored) {

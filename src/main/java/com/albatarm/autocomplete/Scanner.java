@@ -1,15 +1,41 @@
 package com.albatarm.autocomplete;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.function.IntPredicate;
+import java.util.stream.Stream;
 import org.antlr.v4.parse.ANTLRLexer;
 import org.antlr.v4.runtime.Lexer;
-import org.antlr.v4.runtime.Token;
 
-public class Scanner<T extends Lexer> {
+public class Scanner<T extends Lexer> implements Iterable<Token> {
+    
+    private final static class ScannerToken implements Token {
+
+        private final org.antlr.v4.runtime.Token token;
+        
+        public ScannerToken(org.antlr.v4.runtime.Token token) {
+            this.token = token;
+        }
+        
+        @Override
+        public int getType() {
+            return token.getType();
+        }
+
+        @Override
+        public String getText() {
+            return token.getText();
+        }
+        
+        @Override
+        public String toString() {
+            return getText() + "(" + getType() + ")";
+        }
+        
+    }
     
     private int tokenIndex;
-    private final ArrayList<Token> tokens = new ArrayList<>();
+    private final ArrayList<org.antlr.v4.runtime.Token> tokens = new ArrayList<>();
     private final IntPredicate separatorPredicate;
 
     public Scanner(T lexer, IntPredicate separatorPredicate) {
@@ -19,7 +45,7 @@ public class Scanner<T extends Lexer> {
         // things a lot simpler or even possible. The token stream used by a parser does exactly the same.
         this.tokenIndex = 0;
         while (true) {
-            Token token = lexer.nextToken();
+            org.antlr.v4.runtime.Token token = lexer.nextToken();
             tokens.add(token);
             if (token.getType() == ANTLRLexer.EOF) {
                 break;
@@ -31,7 +57,7 @@ public class Scanner<T extends Lexer> {
         tokenIndex = 0;
     }
     
-    private Token getCurrentToken() {
+    private org.antlr.v4.runtime.Token getCurrentToken() {
         return tokens.get(tokenIndex);
     }
     
@@ -48,7 +74,7 @@ public class Scanner<T extends Lexer> {
     }
     
     public int getTokenEnd() {
-        Token token = getCurrentToken();
+        org.antlr.v4.runtime.Token token = getCurrentToken();
         return token.getCharPositionInLine() + (token.getStopIndex() - token.getStartIndex()) + 1;
     }
     
@@ -90,6 +116,15 @@ public class Scanner<T extends Lexer> {
     
     public boolean isSeparator() {
         return separatorPredicate.test(getTokenType());
+    }
+    
+    @Override
+    public Iterator<Token> iterator() {
+        return stream().iterator();
+    }
+    
+    public Stream<Token> stream() {
+        return tokens.stream().map(ScannerToken::new);
     }
 
 }
