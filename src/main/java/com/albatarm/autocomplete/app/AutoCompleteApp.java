@@ -17,7 +17,7 @@ import javafx.stage.Stage;
 
 public class AutoCompleteApp extends Application {
     
-    private static final Lang LANG = new OtherSimpleLang();
+    private static final Lang LANG = new CalculatorLang();
     
     private TextArea textArea = new TextArea();
     private Label label = new Label();

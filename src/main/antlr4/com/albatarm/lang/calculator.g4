@@ -45,7 +45,11 @@ multiplyingExpression
    ;
 
 powExpression
-   : atom (POW expression)?
+   : atom (pow expression)?
+   ;
+   
+pow 
+   : POW
    ;
 
 atom

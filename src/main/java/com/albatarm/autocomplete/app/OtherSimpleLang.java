@@ -1,5 +1,6 @@
 package com.albatarm.autocomplete.app;
 
+import com.albatarm.autocomplete.AutoCompleterFactory;
 import com.albatarm.lang.OtherSimpleLexer;
 import com.albatarm.lang.OtherSimpleParser;
 import java.util.Arrays;
@@ -22,5 +23,10 @@ public class OtherSimpleLang extends AbstractLang<OtherSimpleLexer> {
                 OtherSimpleLexer::new
         );
     }
-
+    
+    @Override
+    protected void configure(AutoCompleterFactory factory) {
+        //factory.setIngoredTokens("','");
+    }
+    
 }

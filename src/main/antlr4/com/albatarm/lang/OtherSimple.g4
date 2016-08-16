@@ -1,8 +1,16 @@
 grammar OtherSimple;
 
 root
-    : word op number (COMMA instruction)*
+    : word op number instructions?
     ;
+    
+instructions
+    : comma function (comma function)*
+    ;
+    
+comma
+    : COMMA
+    ;    
     
 op
     : MINUS
@@ -17,7 +25,7 @@ number
     : Number
     ;
     
-instruction
+function
     : Play
     | Pause
     ;

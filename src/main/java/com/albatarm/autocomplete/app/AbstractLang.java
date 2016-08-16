@@ -1,6 +1,7 @@
 package com.albatarm.autocomplete.app;
 
 import com.albatarm.autocomplete.AutoCompleter;
+import com.albatarm.autocomplete.AutoCompleterFactory;
 import com.albatarm.autocomplete.AutoCompletionContext;
 import com.albatarm.autocomplete.DebugAutoCompleterFactory;
 import com.albatarm.autocomplete.Scanner;
@@ -30,10 +31,14 @@ public class AbstractLang<T extends Lexer> implements Lang {
         this.lexerFactory = lexerFactory;
         try {
             DebugAutoCompleterFactory factory = new DebugAutoCompleterFactory();
+            configure(factory);
             completer = factory.generate(Paths.get(grammarFile), Paths.get(tokensFile));
         } catch (IOException | RecognitionException e) {
             throw new IllegalStateException(e);
         }
+    }
+    
+    protected void configure(AutoCompleterFactory factory) {
     }
 
     @Override

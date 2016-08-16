@@ -6,6 +6,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,7 +40,7 @@ public class AutoCompleterFactory {
     // TODO
     private static final int DOT_SYMBOL = ANTLRLexer.DOT;
 
-    private static final Logger LOG = LogManager.getLogger(AutoCompleter.class);
+    private static final Logger LOG = LogManager.getLogger(AutoCompleterFactory.class);
 
     // Full grammar
     private final Map<String, RuleAlternatives> rules = new HashMap<>();
@@ -46,11 +48,11 @@ public class AutoCompleterFactory {
     private final Map<String, Integer> tokenMap = new HashMap<>();
 
     // Rules with a special meaning (e.g. "table_ref").
-    private final Set<String> specialRules = new HashSet<>();
+    private Set<String> specialRules = new HashSet<>();
     // Rules we don't provide completion with (e.g. "label").
-    private final Set<String> ignoredRules = new HashSet<>();
+    private Set<String> ignoredRules = new HashSet<>();
     // Tokens we don't want to show up (e.g. operators).
-    private final Set<String> ignoredTokens = new HashSet<>();
+    private Set<String> ignoredTokens = new HashSet<>();
     
     public AutoCompleter generate(Path grammarFilename, Path tokenFilename) throws IOException, RecognitionException {
         init();
@@ -106,7 +108,7 @@ public class AutoCompleterFactory {
             try {
                 ParserRuleReturnScope r = parser.grammarSpec();
                 GrammarAST tree = (GrammarAST) r.getTree();
-                visit(tree, "");
+                //visit(tree, "");
                 LOG.debug(() -> "tree type = " + tree.getType());
                 if (tree.getType() == ANTLRParser.GRAMMAR) {
                     for (int index = 0; index < tree.getChildCount(); index++) {
@@ -187,7 +189,7 @@ public class AutoCompleterFactory {
         // any predicate.
         for (int index = 0; index < block.getChildCount(); index++) {
             BaseTree alt = (BaseTree) block.getChild(index);
-            LOG.debug("block child is " + alt.getType());
+            LOG.debug("   block child is " + ANTLRParser.tokenNames[alt.getType()] + "{" + alt.getType() + "}");
 
             // 2 nodes at most: the single terminal + EOA. Gated semantic
             // predicates are child nodes of that
@@ -234,7 +236,7 @@ public class AutoCompleterFactory {
     }
 
     private GrammarSequence traverseAlternative(AltAST alt, String name) {
-        LOG.debug("traverseAlternative " + alt + ", " + name + ", " + alt.getClass().getName());
+        LOG.debug("traverseAlternative " + name);
 
         GrammarSequenceBuilder sequenceBuilder = new GrammarSequenceBuilder();
         int index = 0;
@@ -245,6 +247,7 @@ public class AutoCompleterFactory {
             case ANTLRParser.SEMPRED:
             // TODO case ANTLRParser.GATED_SEMPRED_V3TOK
             {
+                LOG.debug("   sempred");
                 // See if we can extract version info or SQL mode condition from
                 // that.
                 ++index;
@@ -257,14 +260,15 @@ public class AutoCompleterFactory {
                 parsePredicate(predicate, sequenceBuilder.build());
                 break;
             }
-            case ANTLRParser.SYNPRED: // A syntactic predicate converted to a
-                                      // semantic predicate.
+            case ANTLRParser.SYNPRED: // A syntactic predicate converted to a semantic predicate.
+                LOG.debug("   syntactic predicate");
                 ++index; // Not needed for our work, so we can ignore it.
                 break;
             case ANTLRParser.EPSILON: // An empty alternative.
+                LOG.debug("   empty");
                 return sequenceBuilder.build();
             default:
-                LOG.debug("child -> " + ch.getType());
+                LOG.debug("   no special node (" + ch.getType() + ")");
                 break;
         }
 
@@ -275,6 +279,8 @@ public class AutoCompleterFactory {
 
             int type = child.getType();
 
+            LOG.debug("   analyze " + type);
+            
             // Ignore ROOT/BANG nodes (they are just tree construction markup).
             /*
              * if (type == ANTLRParser.ROOT || type == ANTLRParser.BANG) { child = child.getChild(0); type = child.getType(); }
@@ -294,9 +300,13 @@ public class AutoCompleterFactory {
                     // If so optimize and make this single child node directly
                     // the current node.
                     boolean optimized = false;
-                    if (child.getChildCount() == 2) { // 2 because there's always that EOB child node.
+                    LOG.debug("      is " + child);
+                    LOG.debug("      child count = " + child.getChildCount());
+                    if (child.getChildCount() == 1/**2**/) { // 2 because there's always that EOB child node.
                         Tree childAlt = child.getChild(0);
-                        if (childAlt.getChildCount() == 2) { // 2 because there's always that EOA child node.
+                        LOG.debug("      is " + childAlt);
+                        LOG.debug("      childAlt count = " + childAlt.getChildCount());
+                        if (childAlt.getChildCount() == 1/**2**/) { // 2 because there's always that EOA child node.
                             optimized = true;
                             child = childAlt.getChild(0);
                             int childType = child.getType();
@@ -304,7 +314,7 @@ public class AutoCompleterFactory {
                                 case ANTLRParser.LEXER_CHAR_SET: // TODO CHAR_LITERAL
                                 case ANTLRParser.STRING_LITERAL:
                                 case ANTLRParser.TOKEN_REF: {
-                                    LOG.debug("char string literal -> " + type);
+                                    LOG.debug("      char string literal -> " + type);
                                     node.setTerminal(true);
                                     String childName = child.getText();
                                     if (childType == ANTLRParser.LEXER_CHAR_SET || childType == ANTLRParser.STRING_LITERAL) { // TODO CHAR_LITERAL
@@ -314,6 +324,7 @@ public class AutoCompleterFactory {
                                     break;
                                 }
                                 case ANTLRParser.RULE_REF: {
+                                    LOG.debug("      rule ref");
                                     node.setTerminal(false);
                                     node.setRuleRef(child.getText());
                                     break;
@@ -337,7 +348,7 @@ public class AutoCompleterFactory {
                 case ANTLRParser.LEXER_CHAR_SET: // TODO CHAR_LITERAL
                 case ANTLRParser.STRING_LITERAL:
                 case ANTLRParser.TOKEN_REF: {
-                    LOG.debug("char string literal -> " + type);
+                    LOG.debug("   char string literal -> " + type);
                     node.setTerminal(true);
                     String name2 = child.getText();
                     if (type == ANTLRParser.LEXER_CHAR_SET || type == ANTLRParser.STRING_LITERAL) // TODO CHAR_LITERAL
@@ -391,7 +402,7 @@ public class AutoCompleterFactory {
                         case ANTLRParser.LEXER_CHAR_SET: // TODO CHAR_LITERAL
                         case ANTLRParser.STRING_LITERAL:
                         case ANTLRParser.TOKEN_REF: {
-                            LOG.debug("char string literal -> " + type);
+                            LOG.debug("   char string literal -> " + type);
                             String tokenText = token.getText();
                             if (type == ANTLRParser.LEXER_CHAR_SET || type == ANTLRParser.STRING_LITERAL) { // TODO CHAR_LITERAL
                                 tokenText = unquote(tokenText);
@@ -441,9 +452,33 @@ public class AutoCompleterFactory {
         LOG.debug(() -> "unquote " + s);
         return s;
     }
-
+    
     private void parsePredicate(String predicate, GrammarSequence sequence) {
         LOG.debug("parsePredicate [{}]", predicate);
+    }
+    
+    public void setIgnoredRules(Collection<String> rules) {
+        this.ignoredRules = new HashSet<>(rules);
+    }
+    
+    public void setIgnoredRules(String... rules) {
+        setIgnoredRules(Arrays.asList(rules));
+    }
+    
+    public void setIgnoredTokens(Collection<String> tokens) {
+        this.ignoredTokens = new HashSet<>(tokens);
+    }
+    
+    public void setIngoredTokens(String... tokens) {
+        setIgnoredTokens(Arrays.asList(tokens));
+    }
+    
+    public void setSpecialRules(Collection<String> rules) {
+        this.specialRules = new HashSet<>(rules);
+    }
+    
+    public void setSpecialRules(String... rules) {
+        setIgnoredRules(Arrays.asList(rules));
     }
     
     protected RuleAlternatives createRuleAlternatives(boolean optimized, List<GrammarSequence> sequences, Set<Integer> tokens) {

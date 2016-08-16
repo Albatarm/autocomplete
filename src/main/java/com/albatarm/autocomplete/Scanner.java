@@ -29,7 +29,7 @@ public class Scanner<T extends Lexer> implements Iterable<Token> {
         
         @Override
         public String toString() {
-            return getText() + "(" + getType() + ")";
+            return '"' + getText() + "':" + getType();
         }
         
     }
