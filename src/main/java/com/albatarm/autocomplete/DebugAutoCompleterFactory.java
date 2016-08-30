@@ -1,6 +1,8 @@
 package com.albatarm.autocomplete;
 
 import com.albatarm.autocomplete.GrammarNode.Builder;
+
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
@@ -23,6 +25,10 @@ public class DebugAutoCompleterFactory extends AutoCompleterFactory {
     }
 
     private Namer namer = new Namer();
+    
+    public DebugAutoCompleterFactory(Path importPath) {
+		super(importPath);
+	}
     
     @Override
     protected void init() {

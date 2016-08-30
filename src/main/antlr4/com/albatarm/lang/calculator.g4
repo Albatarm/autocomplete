@@ -64,7 +64,7 @@ scientific
    ;
 
 func
-   : funcname LPAREN expression RPAREN
+   : funcname lparen expression rparen
    ;
 
 funcname
@@ -87,6 +87,14 @@ relop
 number
    : Number
    ;
+   
+lparen
+   : LPAREN
+   ;
+   
+rparen
+   : RPAREN
+   ;
 
 Number
    : MINUS? DIGIT + (POINT DIGIT +)?
@@ -95,11 +103,6 @@ Number
 variable
    : Ident
    ;
-   
-Ident
-    : MINUS? LETTER (LETTER | DIGIT)*
-    ;
-
 
 COS
    : 'cos'
@@ -139,6 +142,10 @@ LN
 LOG
    : 'log'
    ;
+   
+Ident
+    : MINUS? LETTER (LETTER | DIGIT)*
+    ;
 
 
 LPAREN

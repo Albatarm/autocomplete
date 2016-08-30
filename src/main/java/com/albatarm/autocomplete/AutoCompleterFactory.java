@@ -11,11 +11,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
+
 import org.antlr.runtime.ANTLRInputStream;
 import org.antlr.runtime.CommonTokenStream;
 import org.antlr.runtime.ParserRuleReturnScope;
@@ -53,6 +55,12 @@ public class AutoCompleterFactory {
     private Set<String> ignoredRules = new HashSet<>();
     // Tokens we don't want to show up (e.g. operators).
     private Set<String> ignoredTokens = new HashSet<>();
+    
+    private final Path importPath;
+    
+    public AutoCompleterFactory(Path importPath) {
+    	this.importPath = importPath;
+	}
     
     public AutoCompleter generate(Path grammarFilename, Path tokenFilename) throws IOException, RecognitionException {
         init();
@@ -114,9 +122,15 @@ public class AutoCompleterFactory {
                     for (int index = 0; index < tree.getChildCount(); index++) {
                         BaseTree child = (BaseTree) tree.getChild(index);
                         // not sure
-                        LOG.debug("child " + child.getType());
-                        if (child.getType() == ANTLRParser.RULES) {
-                            traverseRules(child);
+                        switch (child.getType()) {
+                        	case ANTLRParser.RULES: 
+                        		traverseRules(child);
+                        		break;
+                        	case ANTLRParser.IMPORT:
+                        		importGrammar(child);
+                        		break;
+                        	default:
+                        		LOG.debug("unknown root section " + child.getType());
                         }
                     }
                 }
@@ -126,6 +140,33 @@ public class AutoCompleterFactory {
         }
     }
 
+    private void importGrammar(Tree tree) throws IOException, RecognitionException {
+    	if (importPath == null) {
+    		throw new IllegalStateException("Cannot import grammar without import path");
+    	}
+    	for (Tree child : getChildren(tree)) {
+    		LOG.debug("ID " + child.getText());
+    		String grammarName = child.getText() + ".g4";
+    		readGrammar(importPath.resolve(grammarName));
+    	}
+    }
+    
+    private Iterable<Tree> getChildren(Tree tree) {
+    	return () -> new Iterator<Tree>() {
+    		private int pos = 0;
+    		
+			@Override
+			public boolean hasNext() {
+				return pos < tree.getChildCount();
+			}
+
+			@Override
+			public Tree next() {
+				return tree.getChild(pos++);
+			}
+    	};
+    }
+    
     private void visit(Tree tree, String prefix) {
         System.out.println(prefix + tree.getType() + " " + tree.getText() + " " + tree);
         for (int i=0; i<tree.getChildCount(); i++) {
@@ -329,8 +370,23 @@ public class AutoCompleterFactory {
                                     node.setRuleRef(child.getText());
                                     break;
                                 }
+                                case ANTLRParser.ASSIGN: 
+                                case ANTLRParser.PLUS_ASSIGN: {
+                                	if (child.getChildCount() != 2) {
+                                		throw new IllegalStateException();
+                                	}
+                                	Tree nonIdChild = child.getChild(1);
+                                	if (nonIdChild.getType() == ANTLRParser.TOKEN_REF) {
+                                		node.setTerminal(true);
+                                		String childName = nonIdChild.getText();
+                                		node.setTokenRef(getTokenIdFromName(childName));
+                                	} else {
+                                		throw new IllegalStateException();
+                                	}
+                                	break;
+                                }
                                 default: {
-                                    throw new IllegalStateException("Unhandled type : " + type + " in alternative : " + name);
+                                    throw new IllegalStateException("Unhandled type : " + childType + " in alternative : " + name + " (" + child.getClass().getName() + ")");
                                 }
                             }
                         }
@@ -385,6 +441,7 @@ public class AutoCompleterFactory {
                 }
 
                 case ANTLRParser.ASSIGN: // TODO LABEL_ASSIGN_V3TOK
+                case ANTLRParser.PLUS_ASSIGN:
                 {
                     // A variable assignment, instead of a token or rule
                     // reference.
@@ -408,10 +465,23 @@ public class AutoCompleterFactory {
                                 tokenText = unquote(tokenText);
                             }
                             node.setTokenRef(getTokenIdFromName(tokenText));
+                            break;
                         }
+                        case ANTLRParser.RULE_REF: {
+                        	node.setTerminal(false);
+                            node.setRuleRef(token.getText());
+                            break;
+                        }
+                        case ANTLRParser.BLOCK: {
+                        	String blockName = name + "_block" + index;
+                            traverseBlock((BlockAST) token, blockName);
 
+                            node.setTerminal(false);
+                            node.setRuleRef(blockName);
+                            break;
+                        }
                         default: {
-                            throw new IllegalStateException("Unhandled type: " + type + " in label assignment : " + name);
+                            throw new IllegalStateException("Unhandled type: " + token.getType() + " in label assignment : " + name);
                         }
                     }
                     break;
@@ -424,9 +494,17 @@ public class AutoCompleterFactory {
                     // control parts with dynamic conditions.
                     continue;
                 }
+                
+                /*case ANTLRParser.PLUS_ASSIGN: {
+                	
+                	
+                	LOG.debug("PLUS ASSIGN " + createStringTree(child));
+                	throw new IllegalStateException(createStringTree(child));
+                	//break;
+                }*/
 
                 default: {
-                    throw new IllegalStateException("Unhandled type: " + type + " in alternative : " + name);
+                    throw new IllegalStateException("Unhandled type: " + type + " in alternative : " + name + " (" + child.getClass().getName() + ")");
                 }
             }
 
@@ -434,6 +512,25 @@ public class AutoCompleterFactory {
         }
 
         return sequenceBuilder.build();
+    }
+    
+    private String createStringTree(Tree tree) {
+    	StringBuilder sb = new StringBuilder();
+    	createStringTree(sb, tree);
+    	return sb.toString();
+    }
+    
+    private void createStringTree(StringBuilder sb, Tree tree) {
+    	sb.append("{").append(tree.getType()).append(" ").append(tree.getText()).append("}");
+    	sb.append("[");
+    	for (int i=0; i<tree.getChildCount(); i++) {
+    		if (i != 0) {
+    			sb.append(", ");
+    		}
+    		Tree child = tree.getChild(i);
+    		createStringTree(sb, child);
+    	}
+    	sb.append("]");
     }
 
     public RuleAlternatives getRuleAlternatives(String rule) {

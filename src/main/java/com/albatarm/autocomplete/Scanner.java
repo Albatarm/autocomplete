@@ -9,7 +9,7 @@ import org.antlr.v4.runtime.Lexer;
 
 public class Scanner<T extends Lexer> implements Iterable<Token> {
     
-    private final static class ScannerToken implements Token {
+    private final class ScannerToken implements Token {
 
         private final org.antlr.v4.runtime.Token token;
         
@@ -29,7 +29,8 @@ public class Scanner<T extends Lexer> implements Iterable<Token> {
         
         @Override
         public String toString() {
-            return '"' + getText() + "':" + getType();
+        	int type = getType();
+        	return type == T.EOF ? "EOF" : lexer.getVocabulary().getDisplayName(type) + "{" + getText() + "}";
         }
         
     }
@@ -37,9 +38,11 @@ public class Scanner<T extends Lexer> implements Iterable<Token> {
     private int tokenIndex;
     private final ArrayList<org.antlr.v4.runtime.Token> tokens = new ArrayList<>();
     private final IntPredicate separatorPredicate;
+	private final T lexer;
 
     public Scanner(T lexer, IntPredicate separatorPredicate) {
-        this.separatorPredicate = separatorPredicate;
+        this.lexer = lexer;
+		this.separatorPredicate = separatorPredicate;
         // Cache the tokens. There's always at least one token: the EOF token.
         // It might seem counter productive to load all tokens upfront, but this makes many
         // things a lot simpler or even possible. The token stream used by a parser does exactly the same.

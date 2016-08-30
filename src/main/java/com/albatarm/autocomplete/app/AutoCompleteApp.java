@@ -1,8 +1,10 @@
 package com.albatarm.autocomplete.app;
 
-import com.albatarm.autocomplete.AutoCompletionContext;
-import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.albatarm.autocomplete.CompletionProposal;
+
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -17,7 +19,7 @@ import javafx.stage.Stage;
 
 public class AutoCompleteApp extends Application {
     
-    private static final Lang LANG = new CalculatorLang();
+    private static final Lang LANG = new DsnLang();
     
     private TextArea textArea = new TextArea();
     private Label label = new Label();
@@ -63,21 +65,32 @@ public class AutoCompleteApp extends Application {
     }
     
     private void compile(int position, String text) {
-        HashSet<String> candidates = new HashSet<>();
         Caret caret = Caret.from(text, position);
-        boolean result = doStuff(text, candidates, caret);
-        label.setText(String.format("For '%s'\n%s\n%s", text, result ? "found" : "not found", candidates.toString()));
+        CompletionProposal proposal = LANG.compile2(text, caret);
+        
+        Set<String> reducted = reduct(proposal.getCandidates(), proposal.getCurrentToken());
+        
+        label.setText(String.format("For '%s'\n%s\n%s\n%s\n%s", 
+        		text, 
+        		proposal.isFullyParsed() ? "fully parsed" : "not fully parsed", 
+        		proposal.getCurrentToken(), 
+        		proposal.getCandidates(),
+        		reducted
+        ));
+    }
+    
+    private Set<String> reduct(Set<String> candidates, String start) {
+    	return candidates.stream().filter(token -> {
+    		if (token.startsWith("'")) {
+    			return token.startsWith("'" + start);
+    		} else {
+    			return true;
+    		}
+    	}).collect(Collectors.toSet());
     }
     
     public static void main(String[] args) {
         Application.launch(args);
     }
     
-    private static boolean doStuff(String source, Set<String> candidates, Caret caret) {
-        AutoCompletionContext<?> ctx = LANG.compile(source, caret);
-        boolean result = ctx.collectCandidates();
-        candidates.addAll(ctx.getCompletionCandidates());
-        return result;
-    }
-
 }

@@ -42,6 +42,15 @@ public class GrammarNode {
         }
         
         public GrammarNode build() {
+        	if (terminal) {
+        		if (ruleRef != null) {
+        			throw new IllegalStateException();
+        		}
+        	} else {
+        		if (tokenRef != 0) {
+        			throw new IllegalStateException();
+        		}
+        	}
             return new GrammarNode(terminal, required, multiple, any, tokenRef, ruleRef);
         }
         

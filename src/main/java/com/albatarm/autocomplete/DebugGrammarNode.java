@@ -28,21 +28,23 @@ public class DebugGrammarNode extends GrammarNode {
     
     @Override
     public String toString() {
-        String tokenName = namer.getTokenName(getTokenRef());
-        ArrayList<String> attr = new ArrayList<>();
+        ArrayList<String> attrs = new ArrayList<>();
         if (isTerminal()) {
-            attr.add("terminal");
+            attrs.add("terminal");
         }
         if (isRequired()) {
-            attr.add("required");
+            attrs.add("required");
         }
         if (isMultiple()) {
-            attr.add("multiple");
+            attrs.add("multiple");
         }
         if (isAny()) {
-            attr.add("any");
+            attrs.add("any");
         }
-        return String.format("Node{token:%s, rule:%s, attr:}", tokenName == null ? "ø" : tokenName, getRuleRef(), attr.stream().collect(Collectors.joining("+")));
+        String type = isTerminal() ? "Token" : "Rule";
+        Object value = isTerminal() ? namer.getTokenName(getTokenRef()) : getRuleRef();
+        String attr = attrs.isEmpty() ? "" : attrs.stream().collect(Collectors.joining("+", ", ", ""));
+        return String.format("%s{%s%s}", type, value, attr);
     }
 
     public static Builder builder(TokenNamer namer) {

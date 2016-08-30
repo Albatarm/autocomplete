@@ -7,7 +7,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import org.antlr.v4.parse.ANTLRParser;
+
 import org.antlr.v4.runtime.Lexer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,7 +22,7 @@ public class AutoCompletionContext<T extends Lexer> {
 
     private final AutoCompleter rulesHolder;
 
-    private String typedPart;
+    //private String typedPart;
     private final List<String> tokenNames;
     private final Deque<String> walkStack = new LinkedList<>(); // The rules as they are being matched or collected from.
     // It's a deque instead of a stack as we need to iterate over it.
@@ -36,6 +36,8 @@ public class AutoCompletionContext<T extends Lexer> {
     private RunState runState;
 
     private final String rootRule;
+    
+    private String unfinishedToken;
 
     // A hierarchical view of all table references in the code, updated constantly during the match process.
     // Organized as stack to be able to easily remove sets of references when changing nesting level.
@@ -87,14 +89,20 @@ public class AutoCompletionContext<T extends Lexer> {
     public Set<String> getCompletionCandidates() {
         return Collections.unmodifiableSet(completionCandidates);
     }
+    
+    public String getCurrentToken() {
+    	return unfinishedToken;
+    }
 
     private boolean matchRule(String rule) {
+    	LOG.debug("matchRule " + rule);
         if (runState != RunState.Matching) { // Sanity check - should never happen at this point.
             return false;
         }
 
         if (isTokenEndAfterCaret()) {
-            //LOG.debug("matchRule::isTokenEndAfterCaret -> collecting from rule");
+            LOG.debug("matchRule::isTokenEndAfterCaret -> collecting from rule");
+        	unfinishedToken = scanner.getTokenText();
             collectFromRule(rule);
             return false;
         }
@@ -114,6 +122,7 @@ public class AutoCompletionContext<T extends Lexer> {
                 matchedAtLeastOnce = true;
                 scanner.next(true);
                 if (isTokenEndAfterCaret()) {
+                	unfinishedToken = scanner.getTokenText();
                     resultState = RunState.CollectionPending;
                 }
             }
@@ -160,7 +169,7 @@ public class AutoCompletionContext<T extends Lexer> {
     }
 
     private boolean isTokenEndAfterCaret() {
-        if (scanner.isType(ANTLRParser.EOF)) {
+        if (scanner.isType(T.EOF)) {
             return true;
         }
         assert (scanner.getTokenLine() > 0);
@@ -187,6 +196,7 @@ public class AutoCompletionContext<T extends Lexer> {
     }
 
     private boolean matchAlternative(GrammarSequence sequence) {
+    	LOG.debug("matchAlternative " + sequence);
         // An empty sequence per se matches anything without consuming input.
         if (sequence.getNodes().isEmpty()) {
             return true;
@@ -194,12 +204,14 @@ public class AutoCompletionContext<T extends Lexer> {
 
         int i = 0;
         while (true) {
+        	LOG.debug("matchAlternative(1)");
             // Set to true if the current node allows multiple occurrences and was matched at least once.
             boolean matchedLoop = false;
             // Skip any optional nodes if they don't match the current input.
             boolean matched;
             GrammarNode node;
             do {
+            	LOG.debug("matchAlternative(2)");
                 node = sequence.getNodes().get(i);
                 matched = match(node, scanner.getTokenType());
 
@@ -279,8 +291,9 @@ public class AutoCompletionContext<T extends Lexer> {
                 // If the current grammar node can be matched multiple times try as often as you can.
                 // This is the greedy approach and default in ANTLR. At the moment we don't support non-greedy matches
                 // as we don't use them in MySQL parser rules.
-                if (!scanner.isType(ANTLRParser.EOF) && node.isMultiple()) {
+                if (!scanner.isType(T.EOF) && node.isMultiple()) {
                     while (true) {
+                    	LOG.debug("matchAlternative(3)");
                         matched = match(node, scanner.getTokenType());
 
                         // If we get a pending collection state here then it means the match() call caused a candidate collection
@@ -315,7 +328,7 @@ public class AutoCompletionContext<T extends Lexer> {
                                 }
                             }
 
-                            if (scanner.isType(ANTLRParser.EOF)) {
+                            if (scanner.isType(T.EOF)) {
                                 break;
                             }
                         }
@@ -345,7 +358,7 @@ public class AutoCompletionContext<T extends Lexer> {
      */
     private boolean match(GrammarNode node, int tokenType) {
         if (node.isTerminal()) {
-            return (node.getTokenRef() == tokenType) || (node.isAny() && !scanner.isType(ANTLRParser.EOF));
+            return (node.getTokenRef() == tokenType) || (node.isAny() && !scanner.isType(T.EOF));
         } else {
             return matchRule(node.getRuleRef());
         }
@@ -370,6 +383,7 @@ public class AutoCompletionContext<T extends Lexer> {
      * Collects possibly reachable tokens from all alternatives in the given rule.
      */
     private void collectFromRule(String rule) {
+    	LOG.debug("collectFromRule " + rule);
         // Don't go deeper if we have one of the special or ignored rules.
         if (rulesHolder.getSpecialRules().contains(rule)) {
             completionCandidates.add(rule);
@@ -386,6 +400,9 @@ public class AutoCompletionContext<T extends Lexer> {
         // Any other rule goes here.
         RunState combinedState = RunState.Matching;
         RuleAlternatives alts = rulesHolder.getRuleAlternatives(rule);
+        if (alts == null) {
+        	throw new IllegalStateException("Unknown rule " + rule);
+        }
         if (alts.isOptimized()) {
             // Insert only tokens we are interested in.
             for (int i : alts.getTokens()) {
@@ -423,9 +440,10 @@ public class AutoCompletionContext<T extends Lexer> {
      * if the sequence between the starting point and the end consists only of optional tokens or there aren't any at all.
      */
     private void collectFromAlternative(GrammarSequence sequence, int startIndex) {
+    	LOG.debug("collectFromAlternative " + sequence + " from " + startIndex);
         for (int i = startIndex; i < sequence.getNodes().size(); ++i) {
             GrammarNode node = sequence.getNodes().get(i);
-            if (node.isTerminal() && node.getTokenRef() == ANTLRParser.EOF) {
+            if (node.isTerminal() && node.getTokenRef() == T.EOF) {
                 runState = RunState.Matching;
                 break;
             }
