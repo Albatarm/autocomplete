@@ -3,6 +3,7 @@ package com.albatarm.autocomplete;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -38,6 +39,9 @@ public class AutoCompletionContext<T extends Lexer> {
     private final String rootRule;
     
     private String unfinishedToken;
+    
+    private final HashSet<String> collected = new HashSet<>();
+    //private final HashMap<String, Integer> matchedRules = new HashMap<>();
 
     // A hierarchical view of all table references in the code, updated constantly during the match process.
     // Organized as stack to be able to easily remove sets of references when changing nesting level.
@@ -67,6 +71,8 @@ public class AutoCompletionContext<T extends Lexer> {
      *
      */
     public boolean collectCandidates() {
+    	collected.clear();
+    	//matchedRules.clear();
         runState = RunState.Matching;
 
         if (scanner.getTokenChannel() != 0) {
@@ -96,6 +102,7 @@ public class AutoCompletionContext<T extends Lexer> {
 
     private boolean matchRule(String rule) {
     	LOG.debug("matchRule " + rule);
+    	
         if (runState != RunState.Matching) { // Sanity check - should never happen at this point.
             return false;
         }
@@ -128,16 +135,8 @@ public class AutoCompletionContext<T extends Lexer> {
             }
         } else {
             boolean canSeek = false;
+            LOG.debug(() -> "   to match alternatives count = " + alts.getSequences().size());
             for (GrammarSequence alt : alts.getSequences()) {
-                // First run a predicate check if this alt can be considered at all.
-                /*
-                 * if ((alt.min_version > server_version) || (server_version > alt.max_version)) continue;
-                 * 
-                 * if ((alt.active_sql_modes > -1) && (alt.active_sql_modes & sql_mode) != alt.active_sql_modes) continue;
-                 * 
-                 * if ((alt.inactive_sql_modes > -1) && (alt.inactive_sql_modes & sql_mode) != 0) continue;
-                 */
-
                 // When attempting to match one alt out of a list pick the one with the longest match.
                 // Reset the run state each time to have the base matching done first (in case a previous alt did collect).
                 int marker = scanner.getPosition();
@@ -163,8 +162,10 @@ public class AutoCompletionContext<T extends Lexer> {
         }
 
         runState = resultState;
-        walkStack.pop();
+        walkStack.removeFirst();
 
+        LOG.debug("   return " + matchedAtLeastOnce);
+        
         return matchedAtLeastOnce;
     }
 
@@ -203,6 +204,7 @@ public class AutoCompletionContext<T extends Lexer> {
         }
 
         int i = 0;
+        LOG.debug("matchAlternative(1 start)");
         while (true) {
         	LOG.debug("matchAlternative(1)");
             // Set to true if the current node allows multiple occurrences and was matched at least once.
@@ -210,6 +212,7 @@ public class AutoCompletionContext<T extends Lexer> {
             // Skip any optional nodes if they don't match the current input.
             boolean matched;
             GrammarNode node;
+            LOG.debug("matchAlternative(2 start)");
             do {
             	LOG.debug("matchAlternative(2)");
                 node = sequence.getNodes().get(i);
@@ -244,6 +247,7 @@ public class AutoCompletionContext<T extends Lexer> {
                 if (i == sequence.getNodes().size()) { // Done with the sequence?
                     return true;
                 }
+                LOG.debug("matchAlternative(2 end)");
             } while (true);
 
             // Important note:
@@ -292,6 +296,7 @@ public class AutoCompletionContext<T extends Lexer> {
                 // This is the greedy approach and default in ANTLR. At the moment we don't support non-greedy matches
                 // as we don't use them in MySQL parser rules.
                 if (!scanner.isType(T.EOF) && node.isMultiple()) {
+                	LOG.debug("matchAlternative(3 start)");
                     while (true) {
                     	LOG.debug("matchAlternative(3)");
                         matched = match(node, scanner.getTokenType());
@@ -333,6 +338,7 @@ public class AutoCompletionContext<T extends Lexer> {
                             }
                         }
                     }
+                    LOG.debug("matchAlternative(3 end)");
                 }
             } else {
                 // No match, but could be end of a grammar node loop.
@@ -346,6 +352,7 @@ public class AutoCompletionContext<T extends Lexer> {
                 break;
             }
         }
+        LOG.debug("matchAlternative(1 end)");
         return true;
     }
 
@@ -384,6 +391,12 @@ public class AutoCompletionContext<T extends Lexer> {
      */
     private void collectFromRule(String rule) {
     	LOG.debug("collectFromRule " + rule);
+    	if (collected.contains(rule)) {
+    		LOG.debug("   already connected");
+    		return;
+    	}
+    	collected.add(rule);
+    	
         // Don't go deeper if we have one of the special or ignored rules.
         if (rulesHolder.getSpecialRules().contains(rule)) {
             completionCandidates.add(rule);

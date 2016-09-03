@@ -19,7 +19,7 @@ import javafx.stage.Stage;
 
 public class AutoCompleteApp extends Application {
     
-    private static final Lang LANG = new DsnLang();
+    private static final Lang LANG = new CalcLang();
     
     private TextArea textArea = new TextArea();
     private Label label = new Label();
@@ -28,6 +28,8 @@ public class AutoCompleteApp extends Application {
     public void start(Stage primaryStage) throws Exception {
         initCore();
         initComponents();
+        label.setMinHeight(150);
+        label.setWrapText(true);
         HBox hbox = new HBox(5, label);
         hbox.setPadding(new Insets(15, 12, 15, 12));
         hbox.setSpacing(10);
@@ -37,7 +39,7 @@ public class AutoCompleteApp extends Application {
         root.setBottom(hbox);
         root.setCenter(textArea);
 
-        Scene scene = new Scene(root, 700, 300);
+        Scene scene = new Scene(root, 700, 500);
         
         scene.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ESCAPE) {
