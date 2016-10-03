@@ -6,7 +6,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-public class CalculatorLang extends AbstractLang<calculatorLexer> {
+public class CalculatorLang extends AbstractLangEx<calculatorLexer> {
     
     private static final Set<Integer> SEPARATORS = new HashSet<>(Arrays.asList(
             calculatorLexer.RPAREN,

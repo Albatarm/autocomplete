@@ -89,6 +89,10 @@ public class Scanner<T extends Lexer> implements Iterable<Token> {
         return getCurrentToken().getText();
     }
     
+    public Token getToken() {
+    	return new ScannerToken(getCurrentToken());
+    }
+    
     public void next() {
         next(true);
     }

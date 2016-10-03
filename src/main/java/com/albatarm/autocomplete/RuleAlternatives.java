@@ -16,26 +16,13 @@ public class RuleAlternatives {
         this.optimized = optimized;
         this.sequences = new ArrayList<>(sequences);
         this.set = new HashSet<>(tokens);
-    }
-    
-    @Deprecated
-    public void setOptimized(boolean optimized) {
-        //this.optimized = optimized;
+        if ((optimized && !sequences.isEmpty()) || (!optimized && sequences.isEmpty())) {
+        	throw new IllegalStateException();
+        }
     }
     
     public boolean isOptimized() {
         return optimized;
-    }
-    
-    @Deprecated
-    public void addToken(int token) {
-        set.add(token);
-    }
-    
-    @Deprecated
-    public void addSequence(GrammarSequence sequence) {
-        //TODO alternatives.sequence.push_back(sequence);
-        sequences.add(sequence);
     }
     
     public Set<Integer> getTokens() {

@@ -19,7 +19,7 @@ import javafx.stage.Stage;
 
 public class AutoCompleteApp extends Application {
     
-    private static final Lang LANG = new CalcLang();
+    private static final Lang LANG = new CalculatorLang2();
     
     private TextArea textArea = new TextArea();
     private Label label = new Label();
@@ -53,7 +53,7 @@ public class AutoCompleteApp extends Application {
     }
     
     private void initCore() {
-        LANG.getAutoCompleter().print();
+        //LANG.getAutoCompleter().print();
     }
     
     private void initComponents() {
@@ -67,7 +67,7 @@ public class AutoCompleteApp extends Application {
     }
     
     private void compile(int position, String text) {
-        Caret caret = Caret.from(text, position);
+        Caret caret = Caret.of(text, position);
         CompletionProposal proposal = LANG.compile2(text, caret);
         
         Set<String> reducted = reduct(proposal.getCandidates(), proposal.getCurrentToken());

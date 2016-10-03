@@ -29,9 +29,6 @@ public class DebugGrammarNode extends GrammarNode {
     @Override
     public String toString() {
         ArrayList<String> attrs = new ArrayList<>();
-        if (isTerminal()) {
-            attrs.add("terminal");
-        }
         if (isRequired()) {
             attrs.add("required");
         }

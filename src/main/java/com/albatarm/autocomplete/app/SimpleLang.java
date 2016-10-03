@@ -6,7 +6,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-public class SimpleLang extends AbstractLang<SimpleLexer> {
+public class SimpleLang extends AbstractLangEx<SimpleLexer> {
     
     private static final Set<Integer> SEPARATORS = new HashSet<>(Arrays.asList(
             SimpleLexer.PLUS

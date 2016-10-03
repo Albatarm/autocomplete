@@ -49,11 +49,15 @@ relop
    ;
 
 number
+   : Number
+   ;
+
+Number
    : MINUS? DIGIT + (POINT DIGIT +)?
    ;
 
 variable
-   : MINUS? LETTER (LETTER | DIGIT)*
+   : Variable
    ;
 
 
@@ -94,6 +98,10 @@ LN
 
 LOG
    : 'log'
+   ;
+   
+Variable
+   : MINUS? LETTER (LETTER | DIGIT)*
    ;
 
 

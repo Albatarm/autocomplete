@@ -41,7 +41,7 @@ public class AutoCompletionContext<T extends Lexer> {
     private String unfinishedToken;
     
     private final HashSet<String> collected = new HashSet<>();
-    //private final HashMap<String, Integer> matchedRules = new HashMap<>();
+    private final HashMap<String, Integer> matchedRules = new HashMap<>();
 
     // A hierarchical view of all table references in the code, updated constantly during the match process.
     // Organized as stack to be able to easily remove sets of references when changing nesting level.
@@ -72,7 +72,7 @@ public class AutoCompletionContext<T extends Lexer> {
      */
     public boolean collectCandidates() {
     	collected.clear();
-    	//matchedRules.clear();
+    	matchedRules.clear();
         runState = RunState.Matching;
 
         if (scanner.getTokenChannel() != 0) {
@@ -102,6 +102,11 @@ public class AutoCompletionContext<T extends Lexer> {
 
     private boolean matchRule(String rule) {
     	LOG.debug("matchRule " + rule);
+    	
+    	if (matchedRules.getOrDefault(rule, 0) > 5) {
+    		return true;
+    	}
+    	matchedRules.compute(rule, (r, count) -> count == null ? 0 : count + 1);
     	
         if (runState != RunState.Matching) { // Sanity check - should never happen at this point.
             return false;

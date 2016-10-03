@@ -29,7 +29,7 @@ public class AutoCompleter {
     public void print() {
         rules.forEach((name, rule) -> {
             System.out.println(name + " :  ");
-            System.out.println(rule);
+            System.out.println("   " + rule);
         });
     }
 

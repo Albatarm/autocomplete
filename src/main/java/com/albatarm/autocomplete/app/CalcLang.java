@@ -7,7 +7,7 @@ import java.util.Set;
 import com.albatarm.lang.CalcLexer;
 import com.albatarm.lang.CalcParser;
 
-public class CalcLang extends AbstractLang<CalcLexer> {
+public class CalcLang extends AbstractLangEx<CalcLexer> {
     
     private static final Set<Integer> SEPARATORS = new HashSet<>(Arrays.asList(
             CalcLexer.RPAREN,
